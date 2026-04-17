@@ -382,40 +382,21 @@ h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.02em; }
   z-index: 5;
   user-select: none;
   touch-action: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .resize-handle::before {
   content: '';
+  position: absolute;
+  inset: 50%;
+  transform: translate(-50%, -50%);
   border-radius: 999px;
-  background: rgba(255,255,255,0.2);
-  transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+  background: rgba(255,255,255,0.12);
+  transition: background var(--transition), transform var(--transition);
 }
 
 .resize-handle:hover::before,
 .resize-handle.is-active::before {
   background: var(--accent);
-  box-shadow: 0 0 0 4px rgba(124,107,255,0.16);
-}
-
-.resize-handle::after {
-  position: absolute;
-  font-family: var(--mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.3);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--transition), color var(--transition);
-}
-
-.resize-handle:hover::after,
-.resize-handle.is-active::after {
-  opacity: 1;
-  color: rgba(255,255,255,0.55);
 }
 
 .resize-handle-vertical {
@@ -424,14 +405,8 @@ h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.02em; }
 }
 
 .resize-handle-vertical::before {
-  width: 4px;
-  height: 140px;
-}
-
-.resize-handle-vertical::after {
-  content: 'drag';
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+  width: 3px;
+  height: 64px;
 }
 
 .resize-handle-horizontal {
@@ -441,13 +416,8 @@ h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.02em; }
 }
 
 .resize-handle-horizontal::before {
-  width: 140px;
-  height: 4px;
-}
-
-.resize-handle-horizontal::after {
-  content: 'drag';
-  top: -1.1rem;
+  width: 64px;
+  height: 3px;
 }
 
 body.is-resizing {

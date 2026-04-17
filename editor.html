@@ -75,7 +75,6 @@
     role="separator"
     aria-orientation="vertical"
     aria-label="Resize problem and workspace panels"
-    title="Drag to resize panels. Double-click to reset."
   ></div>
 
   <!-- RIGHT: Editor + Output stacked -->
@@ -104,7 +103,6 @@ SELECT ..."></textarea>
       role="separator"
       aria-orientation="horizontal"
       aria-label="Resize editor and output panels"
-      title="Drag to resize panels. Double-click to reset."
     ></div>
 
     <!-- Output -->
@@ -560,10 +558,6 @@ SELECT ..."></textarea>
       getStartSize: () => getCurrentPanelSize(layout, '--editor-panel-height', 320),
       onDrag: (startSize, delta) => resizeRows(layout, startSize, delta)
     });
-
-    const resetLayout = () => resetPanelPrefs(layout);
-    verticalHandle.addEventListener('dblclick', resetLayout);
-    horizontalHandle.addEventListener('dblclick', resetLayout);
   }
 
   function bindResizeHandle({ handle, getStartSize, onDrag }) {
@@ -633,12 +627,6 @@ SELECT ..."></textarea>
     } catch (err) {
       localStorage.removeItem(panelPrefsKey);
     }
-  }
-
-  function resetPanelPrefs(layout) {
-    layout.style.setProperty('--problem-panel-width', '420px');
-    layout.style.setProperty('--editor-panel-height', '320px');
-    localStorage.removeItem(panelPrefsKey);
   }
 </script>
 </body>
