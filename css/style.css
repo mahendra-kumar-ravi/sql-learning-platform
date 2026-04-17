@@ -160,24 +160,20 @@ h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.02em; }
 
 .tracks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1.1rem;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
   margin-bottom: 4rem;
-  align-items: stretch;
 }
 
 .track-card {
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: clamp(1.1rem, 2vw, 1.5rem);
+  padding: 1.5rem;
   cursor: pointer;
   transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
   position: relative;
   overflow: hidden;
-  min-height: 220px;
-  display: flex;
-  flex-direction: column;
 }
 
 .track-card::before {
@@ -194,9 +190,9 @@ h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.02em; }
 .track-card:hover::before { opacity: 1; }
 
 .track-icon { font-size: 1.8rem; margin-bottom: 0.75rem; }
-.track-name { font-size: clamp(1.1rem, 2.5vw, 1.3rem); font-weight: 800; margin-bottom: 0.1rem; }
+.track-name { font-size: 1.3rem; font-weight: 800; margin-bottom: 0.1rem; }
 .track-tagline { font-size: 0.75rem; color: var(--card-color, var(--accent)); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.6rem; }
-.track-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.5; margin-bottom: 1rem; flex: 1; }
+.track-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.5; margin-bottom: 1rem; }
 
 .track-meta {
   display: flex;
@@ -279,27 +275,20 @@ h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.02em; }
 .prog-pct { font-size: 0.78rem; color: var(--muted); margin-top: 0.3rem; }
 
 /* ── Question List ───────────────────────────────────────────────── */
-.question-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 0.85rem;
-}
+.question-list { display: flex; flex-direction: column; gap: 0.5rem; }
 
 .q-item {
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem 1.1rem;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  padding: 1rem 1.25rem;
+  display: flex;
   align-items: center;
-  gap: 0.9rem;
+  gap: 1rem;
   cursor: pointer;
   transition: background var(--transition), border-color var(--transition);
   text-decoration: none;
   color: inherit;
-  min-height: 92px;
-  position: relative;
 }
 
 .q-item:hover { background: var(--bg3); border-color: rgba(255,255,255,0.12); }
@@ -318,8 +307,8 @@ h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.02em; }
 
 .q-item.done .q-num { background: rgba(34,197,94,0.15); color: var(--green); }
 
-.q-info { min-width: 0; }
-.q-title { font-size: 0.95rem; font-weight: 600; line-height: 1.35; }
+.q-info { flex: 1; }
+.q-title { font-size: 0.95rem; font-weight: 600; }
 .q-meta { font-size: 0.75rem; color: var(--muted); margin-top: 0.1rem; }
 
 .q-badge {
@@ -328,13 +317,12 @@ h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.02em; }
   font-size: 0.7rem;
   font-weight: 700;
   flex-shrink: 0;
-  justify-self: start;
 }
 .badge-easy { background: rgba(34,197,94,0.15); color: var(--green); }
 .badge-medium { background: rgba(245,158,11,0.15); color: var(--amber); }
 .badge-hard { background: rgba(239,68,68,0.15); color: var(--red); }
 
-.q-status { font-size: 1rem; flex-shrink: 0; justify-self: end; }
+.q-status { font-size: 1rem; flex-shrink: 0; }
 
 /* ── Editor Layout ───────────────────────────────────────────────── */
 .editor-layout {
@@ -615,32 +603,10 @@ h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.02em; }
     height: auto;
   }
   .panel { max-height: 60vh; }
-  .question-list {
-    grid-template-columns: 1fr;
-  }
 }
 @media (max-width: 600px) {
   .navbar { padding: 1rem; }
   .nav-links { display: none; }
   .hero { padding: 3rem 0 2rem; }
   .stats-bar { gap: 1.5rem; }
-  .tracks-grid {
-    grid-template-columns: 1fr;
-  }
-  .track-card {
-    min-height: auto;
-  }
-  .q-item {
-    grid-template-columns: auto 1fr;
-    align-items: start;
-  }
-  .q-badge {
-    grid-column: 2;
-    margin-top: -0.15rem;
-  }
-  .q-status {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
 }
