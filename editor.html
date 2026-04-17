@@ -29,10 +29,10 @@
 </nav>
 
 <!-- Main Layout -->
-<div class="editor-layout">
+<div class="editor-layout" id="editorLayout">
 
   <!-- LEFT: Question Panel -->
-  <div class="panel">
+  <div class="panel problem-panel">
     <div class="panel-header">
       <span class="panel-title">Problem</span>
       <span id="qCounter" style="font-size:0.75rem; color:var(--muted); font-family:var(--mono);">01 / 10</span>
@@ -69,11 +69,19 @@
     </div>
   </div>
 
+  <div
+    class="resize-handle resize-handle-vertical"
+    id="verticalResizeHandle"
+    role="separator"
+    aria-orientation="vertical"
+    aria-label="Resize problem and workspace panels"
+  ></div>
+
   <!-- RIGHT: Editor + Output stacked -->
-  <div style="display:flex; flex-direction:column; gap:1rem; min-height:0;">
+  <div class="workspace-stack">
 
     <!-- Editor -->
-    <div class="panel" style="flex: 0 0 auto;">
+    <div class="panel editor-panel">
       <div class="panel-header">
         <span class="panel-title">SQL Editor</span>
         <span style="font-size:0.72rem; color: var(--muted);">sql.js · in-browser</span>
@@ -89,8 +97,16 @@ SELECT ..."></textarea>
       </div>
     </div>
 
+    <div
+      class="resize-handle resize-handle-horizontal"
+      id="horizontalResizeHandle"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Resize editor and output panels"
+    ></div>
+
     <!-- Output -->
-    <div class="panel" style="flex: 1; min-height: 0;">
+    <div class="panel output-panel">
       <div class="panel-header">
         <span class="panel-title">Output</span>
         <span id="rowCount" style="font-size:0.72rem; color:var(--muted);"></span>
@@ -129,6 +145,7 @@ SELECT ..."></textarea>
   let trackId = '';
   let trackQuestions = [];
   let currentIdx = 0;
+  const panelPrefsKey = 'sqlpathPanelPrefs';
 
   // ── Init sql.js ───────────────────────────────────────────────────
   initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` })
@@ -521,6 +538,96 @@ SELECT ..."></textarea>
       runQuery();
     }
   });
+
+  initResizablePanels();
+
+  function initResizablePanels() {
+    const layout = document.getElementById('editorLayout');
+    const verticalHandle = document.getElementById('verticalResizeHandle');
+    const horizontalHandle = document.getElementById('horizontalResizeHandle');
+    if (!layout || !verticalHandle || !horizontalHandle) return;
+
+    applyStoredPanelPrefs(layout);
+    bindResizeHandle({
+      handle: verticalHandle,
+      getStartSize: () => getCurrentPanelSize(layout, '--problem-panel-width', 420),
+      onDrag: (startSize, delta) => resizeColumns(layout, startSize, delta)
+    });
+    bindResizeHandle({
+      handle: horizontalHandle,
+      getStartSize: () => getCurrentPanelSize(layout, '--editor-panel-height', 320),
+      onDrag: (startSize, delta) => resizeRows(layout, startSize, delta)
+    });
+  }
+
+  function bindResizeHandle({ handle, getStartSize, onDrag }) {
+    handle.addEventListener('pointerdown', event => {
+      if (window.innerWidth <= 900) return;
+
+      const isVertical = handle.classList.contains('resize-handle-vertical');
+      const start = isVertical ? event.clientX : event.clientY;
+      const startSize = getStartSize();
+      handle.setPointerCapture(event.pointerId);
+      document.body.classList.add('is-resizing');
+      handle.classList.add('is-active');
+
+      const onMove = moveEvent => {
+        const current = isVertical ? moveEvent.clientX : moveEvent.clientY;
+        onDrag(startSize, current - start);
+      };
+
+      const stop = () => {
+        document.body.classList.remove('is-resizing');
+        handle.classList.remove('is-active');
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', stop);
+        window.removeEventListener('pointercancel', stop);
+        persistPanelPrefs();
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', stop);
+      window.addEventListener('pointercancel', stop);
+    });
+  }
+
+  function getCurrentPanelSize(layout, cssVar, fallback) {
+    const current = parseFloat(getComputedStyle(layout).getPropertyValue(cssVar));
+    return Number.isFinite(current) ? current : fallback;
+  }
+
+  function resizeColumns(layout, startSize, delta) {
+    const next = Math.min(Math.max(startSize + delta, 280), Math.max(window.innerWidth * 0.6, 520));
+    layout.style.setProperty('--problem-panel-width', `${next}px`);
+  }
+
+  function resizeRows(layout, startSize, delta) {
+    const next = Math.min(Math.max(startSize + delta, 180), Math.max((window.innerHeight - 220) * 0.75, 340));
+    layout.style.setProperty('--editor-panel-height', `${next}px`);
+  }
+
+  function persistPanelPrefs() {
+    const layout = document.getElementById('editorLayout');
+    if (!layout) return;
+
+    const problemWidth = getComputedStyle(layout).getPropertyValue('--problem-panel-width').trim();
+    const editorHeight = getComputedStyle(layout).getPropertyValue('--editor-panel-height').trim();
+
+    localStorage.setItem(panelPrefsKey, JSON.stringify({
+      problemWidth,
+      editorHeight
+    }));
+  }
+
+  function applyStoredPanelPrefs(layout) {
+    try {
+      const prefs = JSON.parse(localStorage.getItem(panelPrefsKey) || '{}');
+      if (prefs.problemWidth) layout.style.setProperty('--problem-panel-width', prefs.problemWidth);
+      if (prefs.editorHeight) layout.style.setProperty('--editor-panel-height', prefs.editorHeight);
+    } catch (err) {
+      localStorage.removeItem(panelPrefsKey);
+    }
+  }
 </script>
 </body>
 </html>
