@@ -38,29 +38,16 @@
       <span id="qCounter" style="font-size:0.75rem; color:var(--muted); font-family:var(--mono);">01 / 10</span>
     </div>
     <div class="panel-body" id="questionBody">
-      <div class="problem-section">
-        <div class="section-label">Problem Description</div>
-        <div class="q-difficulty">
-          <span class="q-badge" id="diffBadge">Easy</span>
-          <span class="question-category" id="questionCategory">SELECT</span>
-        </div>
-        <div class="q-problem-title" id="qTitle">Loading...</div>
-        <div class="q-statement" id="qStatement"></div>
-      </div>
+      <div class="q-difficulty"><span class="q-badge" id="diffBadge">Easy</span></div>
+      <div class="q-problem-title" id="qTitle">Loading...</div>
+      <div class="q-statement" id="qStatement"></div>
 
-      <div class="problem-section">
-        <div class="section-label">Table Schema</div>
-        <div id="schemaBox"></div>
-      </div>
+      <button class="hint-toggle" onclick="toggleHint()">💡 Show Hint</button>
+      <div class="hint-box" id="hintBox"></div>
 
-      <div class="problem-section">
-        <div class="section-label">Sample Input Data</div>
-        <div id="sampleInput"></div>
-      </div>
-
-      <div class="problem-section">
-        <div class="section-label">Expected Output</div>
-        <div class="sample-output" id="sampleOutput"></div>
+      <div class="steps-section">
+        <div class="steps-title">Steps</div>
+        <div id="stepsContainer"></div>
       </div>
     </div>
     <div class="q-nav">
@@ -123,7 +110,6 @@ SELECT ..."></textarea>
 <script src="js/questions.js"></script>
 <script>
   // ── Globals ──────────────────────────────────────────────────────
-  let SQLLib = null;
   let db = null;
   let currentQ = null;
   let trackId = '';
@@ -133,7 +119,6 @@ SELECT ..."></textarea>
   // ── Init sql.js ───────────────────────────────────────────────────
   initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` })
     .then(SQL => {
-      SQLLib = SQL;
       db = new SQL.Database();
       bootstrap();
     })
@@ -179,10 +164,21 @@ SELECT ..."></textarea>
     badge.textContent = currentQ.difficulty;
     badge.className = 'q-badge badge-' + currentQ.difficulty.toLowerCase();
 
-    document.getElementById('questionCategory').textContent = currentQ.category;
     document.getElementById('qTitle').textContent = currentQ.title;
     document.getElementById('qStatement').textContent = currentQ.question;
-    renderSchemaSection();
+    document.getElementById('hintBox').textContent = currentQ.hint;
+    document.getElementById('hintBox').classList.remove('show');
+    document.querySelector('.hint-toggle').textContent = '💡 Show Hint';
+
+    // Steps
+    const stepsEl = document.getElementById('stepsContainer');
+    const stepsText = currentQ.steps || '';
+    stepsEl.innerHTML = stepsText.split('.').filter(s => s.trim()).map(s => `
+      <div class="step-item">
+        <div class="step-dot"></div>
+        <span>${s.trim()}.</span>
+      </div>
+    `).join('');
 
     // Reset editor + output
     document.getElementById('sqlInput').value = '';
@@ -192,10 +188,6 @@ SELECT ..."></textarea>
         <div class="icon">⚡</div>
         <div>Run your query to see results</div>
       </div>`;
-    document.getElementById('sampleOutput').innerHTML = `
-      <div class="sample-placeholder">Loading sample output...</div>`;
-    document.getElementById('sampleInput').innerHTML = `
-      <div class="sample-placeholder">Loading sample input...</div>`;
 
     // Load schema into db
     if (db) {
@@ -213,9 +205,6 @@ SELECT ..."></textarea>
         } catch(e2) { /* ignore */ }
       }
     }
-
-    renderSampleInput();
-    renderSampleOutput();
 
     // Update URL without reload
     const url = new URL(window.location);
@@ -258,7 +247,22 @@ SELECT ..."></textarea>
       statusEl.innerHTML = isCorrect ? '✅ Correct answer!' : `ℹ️ ${values.length} row(s) returned`;
       out.appendChild(statusEl);
 
-      out.appendChild(buildResultTable(columns, values));
+      // Table
+      const table = document.createElement('table');
+      table.className = 'result-table';
+
+      const thead = document.createElement('thead');
+      thead.innerHTML = '<tr>' + columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      values.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = row.map(v => `<td>${v === null ? '<em style="color:var(--muted)">NULL</em>' : v}</td>`).join('');
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      out.appendChild(table);
 
     } catch(err) {
       document.getElementById('rowCount').textContent = '';
@@ -267,157 +271,6 @@ SELECT ..."></textarea>
       statusEl.textContent = '✗ ' + err.message;
       out.innerHTML = '';
       out.appendChild(statusEl);
-    }
-  }
-
-  function buildResultTable(columns, values) {
-    const table = document.createElement('table');
-    table.className = 'result-table';
-
-    const thead = document.createElement('thead');
-    thead.innerHTML = '<tr>' + columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
-    table.appendChild(thead);
-
-    const tbody = document.createElement('tbody');
-    values.forEach(row => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = row.map(v => `<td>${v === null ? '<em style="color:var(--muted)">NULL</em>' : v}</td>`).join('');
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-
-    return table;
-  }
-
-  function parseSchemaTables(schema) {
-    const tables = [];
-    const createRegex = /CREATE TABLE\s+([a-zA-Z_][\w]*)\s*\(([\s\S]*?)\);/gi;
-    let match;
-
-    while ((match = createRegex.exec(schema)) !== null) {
-      const tableName = match[1];
-      const body = match[2];
-      const columns = body
-        .split(',')
-        .map(part => part.trim())
-        .filter(Boolean)
-        .filter(part => !/^foreign key/i.test(part) && !/^primary key/i.test(part))
-        .map(part => {
-          const cleaned = part.replace(/\s+/g, ' ').trim();
-          const pieces = cleaned.split(' ');
-          return {
-            name: pieces[0],
-            type: pieces[1] || '',
-            extras: pieces.slice(2).join(' ')
-          };
-        });
-
-      const primaryKeys = columns
-        .filter(col => /primary key/i.test(col.extras))
-        .map(col => col.name);
-
-      tables.push({ name: tableName, columns, primaryKeys });
-    }
-
-    return tables;
-  }
-
-  function renderSchemaSection() {
-    const schemaEl = document.getElementById('schemaBox');
-    const tables = parseSchemaTables(currentQ.schema || '');
-
-    schemaEl.innerHTML = '';
-
-    if (!tables.length) {
-      schemaEl.innerHTML = '<div class="sample-placeholder">No schema available.</div>';
-      return;
-    }
-
-    tables.forEach(table => {
-      const block = document.createElement('div');
-      block.className = 'table-block';
-
-      const title = document.createElement('div');
-      title.className = 'table-name';
-      title.textContent = `Table: ${table.name}`;
-      block.appendChild(title);
-
-      block.appendChild(buildResultTable(
-        ['Column Name', 'Type'],
-        table.columns.map(col => [col.name, col.type.toLowerCase()])
-      ));
-
-      if (table.primaryKeys.length) {
-        const pk = document.createElement('div');
-        pk.className = 'table-note';
-        pk.textContent = `Primary key: ${table.primaryKeys.join(', ')}`;
-        block.appendChild(pk);
-      }
-
-      schemaEl.appendChild(block);
-    });
-  }
-
-  function renderSampleInput() {
-    const inputEl = document.getElementById('sampleInput');
-    const tables = parseSchemaTables(currentQ.schema || '');
-
-    inputEl.innerHTML = '';
-
-    if (!tables.length || !db) {
-      inputEl.innerHTML = '<div class="sample-placeholder">No sample input available.</div>';
-      return;
-    }
-
-    tables.forEach(table => {
-      const block = document.createElement('div');
-      block.className = 'table-block';
-
-      const title = document.createElement('div');
-      title.className = 'table-name';
-      title.textContent = `${table.name} table:`;
-      block.appendChild(title);
-
-      try {
-        const results = db.exec(`SELECT * FROM ${table.name}`);
-        if (!results.length) {
-          const empty = document.createElement('div');
-          empty.className = 'sample-placeholder';
-          empty.textContent = 'No rows available.';
-          block.appendChild(empty);
-        } else {
-          block.appendChild(buildResultTable(results[0].columns, results[0].values));
-        }
-      } catch (err) {
-        const error = document.createElement('div');
-        error.className = 'sample-placeholder';
-        error.textContent = `Unable to load sample input: ${err.message}`;
-        block.appendChild(error);
-      }
-
-      inputEl.appendChild(block);
-    });
-  }
-
-  function renderSampleOutput() {
-    const sampleEl = document.getElementById('sampleOutput');
-    if (!SQLLib || !currentQ) return;
-
-    try {
-      const sampleDb = new SQLLib.Database();
-      sampleDb.run(currentQ.schema);
-      const results = sampleDb.exec(currentQ.solution);
-
-      if (!results || results.length === 0) {
-        sampleEl.innerHTML = '<div class="sample-placeholder">No sample rows returned for this solution.</div>';
-        return;
-      }
-
-      const { columns, values } = results[0];
-      sampleEl.innerHTML = '';
-      sampleEl.appendChild(buildResultTable(columns, values));
-    } catch (err) {
-      sampleEl.innerHTML = `<div class="sample-placeholder">Unable to render sample output: ${err.message}</div>`;
     }
   }
 
@@ -457,6 +310,14 @@ SELECT ..."></textarea>
     document.getElementById('rowCount').textContent = '';
   }
 
+  // ── Hint ──────────────────────────────────────────────────────────
+  function toggleHint() {
+    const box = document.getElementById('hintBox');
+    const btn = document.querySelector('.hint-toggle');
+    const showing = box.classList.toggle('show');
+    btn.textContent = showing ? '🙈 Hide Hint' : '💡 Show Hint';
+  }
+
   // ── Navigate ──────────────────────────────────────────────────────
   function navigate(dir) {
     const next = currentIdx + dir;
@@ -469,7 +330,6 @@ SELECT ..."></textarea>
     // Re-init db for fresh schema
     initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` })
       .then(SQL => {
-        SQLLib = SQL;
         db = new SQL.Database();
         loadQuestion(next);
       });
