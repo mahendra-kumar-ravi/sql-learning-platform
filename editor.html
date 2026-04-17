@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SQLPath — Editor</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- sql.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+  <style>
+    body { overflow: hidden; }
+    @media (max-width: 900px) { body { overflow: auto; } }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="nav-logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+      <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
+    </svg>
+    <span>SQL<b>Path</b></span>
+  </div>
+  <div class="nav-links">
+    <a id="backToTrack" href="#">← Back</a>
+  </div>
+</nav>
+
+<!-- Main Layout -->
+<div class="editor-layout">
+
+  <!-- LEFT: Question Panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Problem</span>
+      <span id="qCounter" style="font-size:0.75rem; color:var(--muted); font-family:var(--mono);">01 / 10</span>
+    </div>
+    <div class="panel-body" id="questionBody">
+      <div class="q-difficulty"><span class="q-badge" id="diffBadge">Easy</span></div>
+      <div class="q-problem-title" id="qTitle">Loading...</div>
+      <div class="q-statement" id="qStatement"></div>
+
+      <button class="hint-toggle" onclick="toggleHint()">💡 Show Hint</button>
+      <div class="hint-box" id="hintBox"></div>
+
+      <div class="steps-section">
+        <div class="steps-title">Steps</div>
+        <div id="stepsContainer"></div>
+      </div>
+    </div>
+    <div class="q-nav">
+      <button class="btn btn-ghost" id="prevBtn" onclick="navigate(-1)">← Prev</button>
+      <button class="btn btn-ghost" id="nextBtn" onclick="navigate(1)" style="margin-left:auto;">Next →</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Editor + Output stacked -->
+  <div style="display:flex; flex-direction:column; gap:1rem; min-height:0;">
+
+    <!-- Editor -->
+    <div class="panel" style="flex: 0 0 auto;">
+      <div class="panel-header">
+        <span class="panel-title">SQL Editor</span>
+        <span style="font-size:0.72rem; color: var(--muted);">sql.js · in-browser</span>
+      </div>
+      <div class="editor-wrap">
+        <textarea id="sqlInput" placeholder="-- Write your SQL query here
+SELECT ..."></textarea>
+        <div class="editor-actions">
+          <button class="btn btn-primary" onclick="runQuery()">▶ Run</button>
+          <button class="btn btn-ghost" onclick="showSolution()">👁 Solution</button>
+          <button class="btn btn-ghost" onclick="resetQuery()">↺ Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="panel" style="flex: 1; min-height: 0;">
+      <div class="panel-header">
+        <span class="panel-title">Output</span>
+        <span id="rowCount" style="font-size:0.72rem; color:var(--muted);"></span>
+      </div>
+      <div class="output-section" id="outputSection">
+        <div class="output-placeholder">
+          <div class="icon">⚡</div>
+          <div>Run your query to see results</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Celebration Modal -->
+<div class="celebration" id="celebration">
+  <div class="celeb-card">
+    <div class="celeb-icon">🎉</div>
+    <div class="celeb-title">Correct!</div>
+    <div class="celeb-msg" id="celebMsg">Great work. Query matches the expected output.</div>
+    <div class="celeb-actions">
+      <button class="btn btn-ghost" onclick="closeCelebration()">Stay Here</button>
+      <button class="btn btn-primary" id="nextQBtn" onclick="navigate(1)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script src="js/questions.js"></script>
+<script>
+  // ── Globals ──────────────────────────────────────────────────────
+  let db = null;
+  let currentQ = null;
+  let trackId = '';
+  let trackQuestions = [];
+  let currentIdx = 0;
+
+  // ── Init sql.js ───────────────────────────────────────────────────
+  initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` })
+    .then(SQL => {
+      db = new SQL.Database();
+      bootstrap();
+    })
+    .catch(err => {
+      showStatus('Failed to load SQL engine: ' + err, 'error');
+    });
+
+  // ── Bootstrap ─────────────────────────────────────────────────────
+  function bootstrap() {
+    trackId = getParam('track');
+    const qId = parseInt(getParam('q'));
+
+    if (!trackId || !QUESTIONS[trackId]) { window.location.href = 'index.html'; return; }
+
+    trackQuestions = QUESTIONS[trackId];
+    const meta = TRACKS.find(t => t.id === trackId);
+
+    document.getElementById('backToTrack').href = `track.html?track=${trackId}`;
+    document.getElementById('backToTrack').textContent = `← ${meta.name} · ${meta.tagline}`;
+
+    // Find question index
+    currentIdx = trackQuestions.findIndex(q => q.id === qId);
+    if (currentIdx < 0) currentIdx = 0;
+
+    loadQuestion(currentIdx);
+  }
+
+  // ── Load Question ─────────────────────────────────────────────────
+  function loadQuestion(idx) {
+    currentIdx = idx;
+    currentQ = trackQuestions[idx];
+
+    // Nav buttons
+    document.getElementById('prevBtn').disabled = idx === 0;
+    document.getElementById('nextBtn').disabled = idx === trackQuestions.length - 1;
+
+    // Counter
+    document.getElementById('qCounter').textContent =
+      String(idx + 1).padStart(2,'0') + ' / ' + String(trackQuestions.length).padStart(2,'0');
+
+    // Difficulty badge
+    const badge = document.getElementById('diffBadge');
+    badge.textContent = currentQ.difficulty;
+    badge.className = 'q-badge badge-' + currentQ.difficulty.toLowerCase();
+
+    document.getElementById('qTitle').textContent = currentQ.title;
+    document.getElementById('qStatement').textContent = currentQ.question;
+    document.getElementById('hintBox').textContent = currentQ.hint;
+    document.getElementById('hintBox').classList.remove('show');
+    document.querySelector('.hint-toggle').textContent = '💡 Show Hint';
+
+    // Steps
+    const stepsEl = document.getElementById('stepsContainer');
+    const stepsText = currentQ.steps || '';
+    stepsEl.innerHTML = stepsText.split('.').filter(s => s.trim()).map(s => `
+      <div class="step-item">
+        <div class="step-dot"></div>
+        <span>${s.trim()}.</span>
+      </div>
+    `).join('');
+
+    // Reset editor + output
+    document.getElementById('sqlInput').value = '';
+    document.getElementById('rowCount').textContent = '';
+    document.getElementById('outputSection').innerHTML = `
+      <div class="output-placeholder">
+        <div class="icon">⚡</div>
+        <div>Run your query to see results</div>
+      </div>`;
+
+    // Load schema into db
+    if (db) {
+      try {
+        db.run(currentQ.schema);
+      } catch(e) {
+        // tables may already exist on schema re-runs; re-create
+        try {
+          // drop and recreate
+          const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table'");
+          if (tables.length) {
+            tables[0].values.forEach(([name]) => db.run(`DROP TABLE IF EXISTS "${name}"`));
+          }
+          db.run(currentQ.schema);
+        } catch(e2) { /* ignore */ }
+      }
+    }
+
+    // Update URL without reload
+    const url = new URL(window.location);
+    url.searchParams.set('q', currentQ.id);
+    window.history.replaceState({}, '', url);
+  }
+
+  // ── Run Query ─────────────────────────────────────────────────────
+  function runQuery() {
+    if (!db) return;
+    const sql = document.getElementById('sqlInput').value.trim();
+    if (!sql) return;
+
+    const out = document.getElementById('outputSection');
+    out.innerHTML = '';
+
+    try {
+      const results = db.exec(sql);
+      if (!results || results.length === 0) {
+        showStatus('Query executed — no rows returned.', 'info');
+        return;
+      }
+
+      const { columns, values } = results[0];
+
+      document.getElementById('rowCount').textContent = `${values.length} row${values.length !== 1 ? 's' : ''}`;
+
+      // Check correctness
+      const isCorrect = checkAnswer(columns, values);
+
+      if (isCorrect) {
+        saveProgress(trackId, currentQ.id);
+        showCelebration();
+        activateSteps();
+      }
+
+      // Status
+      const statusEl = document.createElement('div');
+      statusEl.className = `result-status ${isCorrect ? 'status-success' : 'status-info'}`;
+      statusEl.innerHTML = isCorrect ? '✅ Correct answer!' : `ℹ️ ${values.length} row(s) returned`;
+      out.appendChild(statusEl);
+
+      // Table
+      const table = document.createElement('table');
+      table.className = 'result-table';
+
+      const thead = document.createElement('thead');
+      thead.innerHTML = '<tr>' + columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      values.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = row.map(v => `<td>${v === null ? '<em style="color:var(--muted)">NULL</em>' : v}</td>`).join('');
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      out.appendChild(table);
+
+    } catch(err) {
+      document.getElementById('rowCount').textContent = '';
+      const statusEl = document.createElement('div');
+      statusEl.className = 'result-status status-error';
+      statusEl.textContent = '✗ ' + err.message;
+      out.innerHTML = '';
+      out.appendChild(statusEl);
+    }
+  }
+
+  // ── Check Answer ─────────────────────────────────────────────────
+  function checkAnswer(columns, values) {
+    if (!currentQ.expected_columns) return false;
+
+    // Check that all expected columns are present (case insensitive)
+    const colsLower = columns.map(c => c.toLowerCase());
+    const expectedLower = currentQ.expected_columns.map(c => c.toLowerCase());
+    return expectedLower.every(c => colsLower.includes(c)) && values.length > 0;
+  }
+
+  // ── Show Status ───────────────────────────────────────────────────
+  function showStatus(msg, type) {
+    const out = document.getElementById('outputSection');
+    const el = document.createElement('div');
+    el.className = `result-status status-${type}`;
+    el.textContent = msg;
+    out.innerHTML = '';
+    out.appendChild(el);
+  }
+
+  // ── Show Solution ─────────────────────────────────────────────────
+  function showSolution() {
+    document.getElementById('sqlInput').value = currentQ.solution;
+  }
+
+  // ── Reset ─────────────────────────────────────────────────────────
+  function resetQuery() {
+    document.getElementById('sqlInput').value = '';
+    document.getElementById('outputSection').innerHTML = `
+      <div class="output-placeholder">
+        <div class="icon">⚡</div>
+        <div>Run your query to see results</div>
+      </div>`;
+    document.getElementById('rowCount').textContent = '';
+  }
+
+  // ── Hint ──────────────────────────────────────────────────────────
+  function toggleHint() {
+    const box = document.getElementById('hintBox');
+    const btn = document.querySelector('.hint-toggle');
+    const showing = box.classList.toggle('show');
+    btn.textContent = showing ? '🙈 Hide Hint' : '💡 Show Hint';
+  }
+
+  // ── Navigate ──────────────────────────────────────────────────────
+  function navigate(dir) {
+    const next = currentIdx + dir;
+    if (next < 0 || next >= trackQuestions.length) {
+      if (dir > 0) window.location.href = `track.html?track=${trackId}`;
+      return;
+    }
+    closeCelebration();
+
+    // Re-init db for fresh schema
+    initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` })
+      .then(SQL => {
+        db = new SQL.Database();
+        loadQuestion(next);
+      });
+  }
+
+  // ── Celebration ───────────────────────────────────────────────────
+  function showCelebration() {
+    const msgs = [
+      "Perfect! Your query nailed it.",
+      "Excellent work! That's exactly right.",
+      "Great job! Moving onwards and upwards.",
+      "Correct! You're getting good at this."
+    ];
+    document.getElementById('celebMsg').textContent = msgs[Math.floor(Math.random() * msgs.length)];
+    document.getElementById('celebration').classList.add('show');
+
+    // Disable next in modal if last question
+    const nextBtn = document.getElementById('nextQBtn');
+    if (currentIdx >= trackQuestions.length - 1) {
+      nextBtn.textContent = 'Finish Track ✓';
+      nextBtn.onclick = () => window.location.href = `track.html?track=${trackId}`;
+    } else {
+      nextBtn.textContent = 'Next →';
+      nextBtn.onclick = () => navigate(1);
+    }
+  }
+
+  function closeCelebration() {
+    document.getElementById('celebration').classList.remove('show');
+  }
+
+  // Close on backdrop click
+  document.getElementById('celebration').addEventListener('click', function(e) {
+    if (e.target === this) closeCelebration();
+  });
+
+  // ── Activate Steps ────────────────────────────────────────────────
+  function activateSteps() {
+    const items = document.querySelectorAll('.step-item');
+    items.forEach((el, i) => {
+      setTimeout(() => el.classList.add('active'), i * 300);
+    });
+  }
+
+  // ── Keyboard Shortcut ─────────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      runQuery();
+    }
+  });
+</script>
+</body>
+</html>

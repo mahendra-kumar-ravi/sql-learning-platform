@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SQLPath — Learn SQL by Track</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="nav-logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+      <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
+    </svg>
+    <span>SQL<b>Path</b></span>
+  </div>
+  <div class="nav-links">
+    <a href="#">Tracks</a>
+    <a href="#">Leaderboard</a>
+    <a href="#">About</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero container fade-up">
+  <div class="hero-badge">🚀 Free SQL Learning Platform</div>
+  <h1>Learn SQL<br/><em>The Right Way</em></h1>
+  <p>Structured tracks for real roles — not random questions. Pick your path and grow from beginner to interview-ready.</p>
+
+  <div class="stats-bar fade-up delay-1">
+    <div class="stat-item">
+      <div class="num" style="color: #22c55e;">20+</div>
+      <div class="label">Questions</div>
+    </div>
+    <div class="stat-item">
+      <div class="num" style="color: #7c6bff;">4</div>
+      <div class="label">Tracks</div>
+    </div>
+    <div class="stat-item">
+      <div class="num" style="color: #ff6b9d;">3</div>
+      <div class="label">Roles</div>
+    </div>
+    <div class="stat-item">
+      <div class="num" style="color: #f59e0b;">₹0</div>
+      <div class="label">Cost</div>
+    </div>
+  </div>
+</section>
+
+<!-- Tracks -->
+<section class="container fade-up delay-2">
+  <div class="tracks-heading">Choose Your Track</div>
+  <div class="tracks-grid" id="tracksGrid"></div>
+</section>
+
+<script src="js/app.js"></script>
+<script src="js/questions.js"></script>
+<script>
+  const grid = document.getElementById('tracksGrid');
+
+  TRACKS.forEach((track, i) => {
+    const completed = getCompletedCount(track.id);
+    const pct = Math.round((completed / track.count) * 100);
+
+    const card = document.createElement('div');
+    card.className = 'track-card fade-up';
+    card.style.setProperty('--card-color', track.color);
+    card.style.animationDelay = `${0.1 * i + 0.3}s`;
+    card.style.opacity = '0';
+
+    card.innerHTML = `
+      <div class="track-icon">${track.icon}</div>
+      <div class="track-name">${track.name}</div>
+      <div class="track-tagline">${track.tagline}</div>
+      <div class="track-desc">${track.desc}</div>
+      <div class="track-progress-bar">
+        <div class="track-progress-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="track-meta">
+        <span class="track-count">${completed} / ${track.count} done</span>
+        <span class="track-arrow">→</span>
+      </div>
+    `;
+
+    card.onclick = () => {
+      window.location.href = `track.html?track=${track.id}`;
+    };
+
+    grid.appendChild(card);
+  });
+</script>
+</body>
+</html>
