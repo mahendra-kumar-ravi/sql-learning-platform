@@ -29,25 +29,38 @@
 </nav>
 
 <!-- Main Layout -->
-<div class="editor-layout">
+<div class="editor-layout" id="editorLayout">
 
   <!-- LEFT: Question Panel -->
-  <div class="panel">
+  <div class="panel problem-panel">
     <div class="panel-header">
       <span class="panel-title">Problem</span>
       <span id="qCounter" style="font-size:0.75rem; color:var(--muted); font-family:var(--mono);">01 / 10</span>
     </div>
     <div class="panel-body" id="questionBody">
-      <div class="q-difficulty"><span class="q-badge" id="diffBadge">Easy</span></div>
-      <div class="q-problem-title" id="qTitle">Loading...</div>
-      <div class="q-statement" id="qStatement"></div>
+      <div class="problem-section">
+        <div class="section-label">Problem Description</div>
+        <div class="q-difficulty">
+          <span class="q-badge" id="diffBadge">Easy</span>
+          <span class="question-category" id="questionCategory">SELECT</span>
+        </div>
+        <div class="q-problem-title" id="qTitle">Loading...</div>
+        <div class="q-statement" id="qStatement"></div>
+      </div>
 
-      <button class="hint-toggle" onclick="toggleHint()">💡 Show Hint</button>
-      <div class="hint-box" id="hintBox"></div>
+      <div class="problem-section">
+        <div class="section-label">Table Schema</div>
+        <div id="schemaBox"></div>
+      </div>
 
-      <div class="steps-section">
-        <div class="steps-title">Steps</div>
-        <div id="stepsContainer"></div>
+      <div class="problem-section">
+        <div class="section-label">Sample Input Data</div>
+        <div id="sampleInput"></div>
+      </div>
+
+      <div class="problem-section">
+        <div class="section-label">Expected Output</div>
+        <div class="sample-output" id="sampleOutput"></div>
       </div>
     </div>
     <div class="q-nav">
@@ -56,11 +69,19 @@
     </div>
   </div>
 
+  <div
+    class="resize-handle resize-handle-vertical"
+    id="verticalResizeHandle"
+    role="separator"
+    aria-orientation="vertical"
+    aria-label="Resize problem and workspace panels"
+  ></div>
+
   <!-- RIGHT: Editor + Output stacked -->
-  <div style="display:flex; flex-direction:column; gap:1rem; min-height:0;">
+  <div class="workspace-stack">
 
     <!-- Editor -->
-    <div class="panel" style="flex: 0 0 auto;">
+    <div class="panel editor-panel">
       <div class="panel-header">
         <span class="panel-title">SQL Editor</span>
         <span style="font-size:0.72rem; color: var(--muted);">sql.js · in-browser</span>
@@ -76,8 +97,16 @@ SELECT ..."></textarea>
       </div>
     </div>
 
+    <div
+      class="resize-handle resize-handle-horizontal"
+      id="horizontalResizeHandle"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Resize editor and output panels"
+    ></div>
+
     <!-- Output -->
-    <div class="panel" style="flex: 1; min-height: 0;">
+    <div class="panel output-panel">
       <div class="panel-header">
         <span class="panel-title">Output</span>
         <span id="rowCount" style="font-size:0.72rem; color:var(--muted);"></span>
@@ -89,6 +118,14 @@ SELECT ..."></textarea>
         </div>
       </div>
     </div>
+
+    <div
+      class="resize-corner"
+      id="workspaceCornerHandle"
+      role="separator"
+      aria-label="Resize right workspace horizontally and vertically"
+      title="Drag to resize the right workspace"
+    ></div>
 
   </div>
 </div>
@@ -110,15 +147,18 @@ SELECT ..."></textarea>
 <script src="js/questions.js"></script>
 <script>
   // ── Globals ──────────────────────────────────────────────────────
+  let SQLLib = null;
   let db = null;
   let currentQ = null;
   let trackId = '';
   let trackQuestions = [];
   let currentIdx = 0;
+  const panelPrefsKey = 'sqlpathPanelPrefs';
 
   // ── Init sql.js ───────────────────────────────────────────────────
   initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` })
     .then(SQL => {
+      SQLLib = SQL;
       db = new SQL.Database();
       bootstrap();
     })
@@ -164,21 +204,10 @@ SELECT ..."></textarea>
     badge.textContent = currentQ.difficulty;
     badge.className = 'q-badge badge-' + currentQ.difficulty.toLowerCase();
 
+    document.getElementById('questionCategory').textContent = currentQ.category;
     document.getElementById('qTitle').textContent = currentQ.title;
     document.getElementById('qStatement').textContent = currentQ.question;
-    document.getElementById('hintBox').textContent = currentQ.hint;
-    document.getElementById('hintBox').classList.remove('show');
-    document.querySelector('.hint-toggle').textContent = '💡 Show Hint';
-
-    // Steps
-    const stepsEl = document.getElementById('stepsContainer');
-    const stepsText = currentQ.steps || '';
-    stepsEl.innerHTML = stepsText.split('.').filter(s => s.trim()).map(s => `
-      <div class="step-item">
-        <div class="step-dot"></div>
-        <span>${s.trim()}.</span>
-      </div>
-    `).join('');
+    renderSchemaSection();
 
     // Reset editor + output
     document.getElementById('sqlInput').value = '';
@@ -188,6 +217,10 @@ SELECT ..."></textarea>
         <div class="icon">⚡</div>
         <div>Run your query to see results</div>
       </div>`;
+    document.getElementById('sampleInput').innerHTML = `
+      <div class="sample-placeholder">Loading sample input...</div>`;
+    document.getElementById('sampleOutput').innerHTML = `
+      <div class="sample-placeholder">Loading expected output...</div>`;
 
     // Load schema into db
     if (db) {
@@ -205,6 +238,9 @@ SELECT ..."></textarea>
         } catch(e2) { /* ignore */ }
       }
     }
+
+    renderSampleInput();
+    renderSampleOutput();
 
     // Update URL without reload
     const url = new URL(window.location);
@@ -247,22 +283,7 @@ SELECT ..."></textarea>
       statusEl.innerHTML = isCorrect ? '✅ Correct answer!' : `ℹ️ ${values.length} row(s) returned`;
       out.appendChild(statusEl);
 
-      // Table
-      const table = document.createElement('table');
-      table.className = 'result-table';
-
-      const thead = document.createElement('thead');
-      thead.innerHTML = '<tr>' + columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
-      table.appendChild(thead);
-
-      const tbody = document.createElement('tbody');
-      values.forEach(row => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = row.map(v => `<td>${v === null ? '<em style="color:var(--muted)">NULL</em>' : v}</td>`).join('');
-        tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      out.appendChild(table);
+      out.appendChild(buildResultTable(columns, values));
 
     } catch(err) {
       document.getElementById('rowCount').textContent = '';
@@ -271,6 +292,154 @@ SELECT ..."></textarea>
       statusEl.textContent = '✗ ' + err.message;
       out.innerHTML = '';
       out.appendChild(statusEl);
+    }
+  }
+
+  function buildResultTable(columns, values) {
+    const table = document.createElement('table');
+    table.className = 'result-table';
+
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr>' + columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    values.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = row.map(v => `<td>${v === null ? '<em style="color:var(--muted)">NULL</em>' : v}</td>`).join('');
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    return table;
+  }
+
+  function parseSchemaTables(schema) {
+    const tables = [];
+    const createRegex = /CREATE TABLE\s+([a-zA-Z_][\w]*)\s*\(([\s\S]*?)\);/gi;
+    let match;
+
+    while ((match = createRegex.exec(schema)) !== null) {
+      const tableName = match[1];
+      const body = match[2];
+      const columns = body
+        .split(',')
+        .map(part => part.trim())
+        .filter(Boolean)
+        .filter(part => !/^foreign key/i.test(part) && !/^primary key/i.test(part))
+        .map(part => {
+          const cleaned = part.replace(/\s+/g, ' ').trim();
+          const pieces = cleaned.split(' ');
+          return {
+            name: pieces[0],
+            type: (pieces[1] || '').toLowerCase(),
+            extras: pieces.slice(2).join(' ')
+          };
+        });
+
+      const primaryKeys = columns
+        .filter(col => /primary key/i.test(col.extras))
+        .map(col => col.name);
+
+      tables.push({ name: tableName, columns, primaryKeys });
+    }
+
+    return tables;
+  }
+
+  function renderSchemaSection() {
+    const schemaEl = document.getElementById('schemaBox');
+    const tables = parseSchemaTables(currentQ.schema || '');
+    schemaEl.innerHTML = '';
+
+    if (!tables.length) {
+      schemaEl.innerHTML = '<div class="sample-placeholder">No schema available.</div>';
+      return;
+    }
+
+    tables.forEach(table => {
+      const block = document.createElement('div');
+      block.className = 'table-block';
+
+      const title = document.createElement('div');
+      title.className = 'table-name';
+      title.textContent = `Table: ${table.name}`;
+      block.appendChild(title);
+
+      block.appendChild(buildResultTable(
+        ['Column Name', 'Type'],
+        table.columns.map(col => [col.name, col.type])
+      ));
+
+      if (table.primaryKeys.length) {
+        const pk = document.createElement('div');
+        pk.className = 'table-note';
+        pk.textContent = `Primary key: ${table.primaryKeys.join(', ')}`;
+        block.appendChild(pk);
+      }
+
+      schemaEl.appendChild(block);
+    });
+  }
+
+  function renderSampleInput() {
+    const inputEl = document.getElementById('sampleInput');
+    const tables = parseSchemaTables(currentQ.schema || '');
+    inputEl.innerHTML = '';
+
+    if (!tables.length || !db) {
+      inputEl.innerHTML = '<div class="sample-placeholder">No sample input available.</div>';
+      return;
+    }
+
+    tables.forEach(table => {
+      const block = document.createElement('div');
+      block.className = 'table-block';
+
+      const title = document.createElement('div');
+      title.className = 'table-name';
+      title.textContent = `${table.name} table:`;
+      block.appendChild(title);
+
+      try {
+        const results = db.exec(`SELECT * FROM ${table.name}`);
+        if (results.length) {
+          block.appendChild(buildResultTable(results[0].columns, results[0].values));
+        } else {
+          const empty = document.createElement('div');
+          empty.className = 'sample-placeholder';
+          empty.textContent = 'No rows available.';
+          block.appendChild(empty);
+        }
+      } catch (err) {
+        const error = document.createElement('div');
+        error.className = 'sample-placeholder';
+        error.textContent = `Unable to load sample input: ${err.message}`;
+        block.appendChild(error);
+      }
+
+      inputEl.appendChild(block);
+    });
+  }
+
+  function renderSampleOutput() {
+    const sampleEl = document.getElementById('sampleOutput');
+    if (!SQLLib || !currentQ) return;
+
+    try {
+      const sampleDb = new SQLLib.Database();
+      sampleDb.run(currentQ.schema);
+      const results = sampleDb.exec(currentQ.solution);
+
+      if (!results.length) {
+        sampleEl.innerHTML = '<div class="sample-placeholder">No expected output available.</div>';
+        return;
+      }
+
+      sampleEl.innerHTML = '';
+      sampleEl.appendChild(buildResultTable(results[0].columns, results[0].values));
+    } catch (err) {
+      sampleEl.innerHTML = `<div class="sample-placeholder">Unable to render expected output: ${err.message}</div>`;
     }
   }
 
@@ -308,14 +477,6 @@ SELECT ..."></textarea>
         <div>Run your query to see results</div>
       </div>`;
     document.getElementById('rowCount').textContent = '';
-  }
-
-  // ── Hint ──────────────────────────────────────────────────────────
-  function toggleHint() {
-    const box = document.getElementById('hintBox');
-    const btn = document.querySelector('.hint-toggle');
-    const showing = box.classList.toggle('show');
-    btn.textContent = showing ? '🙈 Hide Hint' : '💡 Show Hint';
   }
 
   // ── Navigate ──────────────────────────────────────────────────────
@@ -381,6 +542,143 @@ SELECT ..."></textarea>
       runQuery();
     }
   });
+
+  initResizablePanels();
+
+  function initResizablePanels() {
+    const layout = document.getElementById('editorLayout');
+    const verticalHandle = document.getElementById('verticalResizeHandle');
+    const horizontalHandle = document.getElementById('horizontalResizeHandle');
+    const cornerHandle = document.getElementById('workspaceCornerHandle');
+    if (!layout || !verticalHandle || !horizontalHandle || !cornerHandle) return;
+
+    applyStoredPanelPrefs(layout);
+    bindResizeHandle({
+      handle: verticalHandle,
+      layout,
+      getStartSize: () => getCurrentPanelSize(layout, '--problem-panel-width', 420),
+      onDrag: (startSize, delta) => resizeColumns(layout, startSize, delta)
+    });
+    bindResizeHandle({
+      handle: horizontalHandle,
+      layout,
+      getStartSize: () => getCurrentPanelSize(layout, '--editor-panel-height', 320),
+      onDrag: (startSize, delta) => resizeRows(layout, startSize, delta)
+    });
+    bindCornerResizeHandle({
+      handle: cornerHandle,
+      layout,
+      getStartSizes: () => ({
+        problemWidth: getCurrentPanelSize(layout, '--problem-panel-width', 420),
+        editorHeight: getCurrentPanelSize(layout, '--editor-panel-height', 320)
+      }),
+      onDrag: (startSizes, dx, dy) => {
+        resizeColumnsFromRight(layout, startSizes.problemWidth, dx);
+        resizeRows(layout, startSizes.editorHeight, dy);
+      }
+    });
+  }
+
+  function bindResizeHandle({ handle, layout, getStartSize, onDrag }) {
+    handle.addEventListener('pointerdown', event => {
+      if (window.innerWidth <= 900) return;
+
+      const isVertical = handle.classList.contains('resize-handle-vertical');
+      const start = isVertical ? event.clientX : event.clientY;
+      const startSize = getStartSize();
+
+      handle.setPointerCapture(event.pointerId);
+      handle.classList.add('is-active');
+      document.body.classList.add('is-resizing');
+
+      const onMove = moveEvent => {
+        const current = isVertical ? moveEvent.clientX : moveEvent.clientY;
+        onDrag(startSize, current - start);
+      };
+
+      const stop = () => {
+        handle.classList.remove('is-active');
+        document.body.classList.remove('is-resizing');
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', stop);
+        window.removeEventListener('pointercancel', stop);
+        persistPanelPrefs(layout);
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', stop);
+      window.addEventListener('pointercancel', stop);
+    });
+  }
+
+  function bindCornerResizeHandle({ handle, layout, getStartSizes, onDrag }) {
+    handle.addEventListener('pointerdown', event => {
+      if (window.innerWidth <= 900) return;
+
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startSizes = getStartSizes();
+
+      handle.setPointerCapture(event.pointerId);
+      handle.classList.add('is-active');
+      document.body.classList.add('is-resizing');
+
+      const onMove = moveEvent => {
+        onDrag(startSizes, moveEvent.clientX - startX, moveEvent.clientY - startY);
+      };
+
+      const stop = () => {
+        handle.classList.remove('is-active');
+        document.body.classList.remove('is-resizing');
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', stop);
+        window.removeEventListener('pointercancel', stop);
+        persistPanelPrefs(layout);
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', stop);
+      window.addEventListener('pointercancel', stop);
+    });
+  }
+
+  function getCurrentPanelSize(layout, cssVar, fallback) {
+    const current = parseFloat(getComputedStyle(layout).getPropertyValue(cssVar));
+    return Number.isFinite(current) ? current : fallback;
+  }
+
+  function resizeColumns(layout, startSize, delta) {
+    const max = Math.max(window.innerWidth * 0.6, 520);
+    const next = Math.min(Math.max(startSize + delta, 280), max);
+    layout.style.setProperty('--problem-panel-width', `${next}px`);
+  }
+
+  function resizeColumnsFromRight(layout, startSize, delta) {
+    resizeColumns(layout, startSize, -delta);
+  }
+
+  function resizeRows(layout, startSize, delta) {
+    const max = Math.max((window.innerHeight - 220) * 0.75, 340);
+    const next = Math.min(Math.max(startSize + delta, 180), max);
+    layout.style.setProperty('--editor-panel-height', `${next}px`);
+  }
+
+  function persistPanelPrefs(layout) {
+    localStorage.setItem(panelPrefsKey, JSON.stringify({
+      problemWidth: getComputedStyle(layout).getPropertyValue('--problem-panel-width').trim(),
+      editorHeight: getComputedStyle(layout).getPropertyValue('--editor-panel-height').trim()
+    }));
+  }
+
+  function applyStoredPanelPrefs(layout) {
+    try {
+      const prefs = JSON.parse(localStorage.getItem(panelPrefsKey) || '{}');
+      if (prefs.problemWidth) layout.style.setProperty('--problem-panel-width', prefs.problemWidth);
+      if (prefs.editorHeight) layout.style.setProperty('--editor-panel-height', prefs.editorHeight);
+    } catch (err) {
+      localStorage.removeItem(panelPrefsKey);
+    }
+  }
 </script>
 </body>
 </html>
