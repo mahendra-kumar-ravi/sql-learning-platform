@@ -1,57 +1,29 @@
-# Backend Implementation Plan (FastAPI + PostgreSQL)
-Status: [IN PROGRESS] ✅ Plan Approved
+# Frontend Integration Plan
+Status: [PLAN APPROVED] - Ready to Implement
 
-## Breakdown Steps
+## Current Progress
+✅ Backend Complete
 
-### 1. Project Setup ✅
-- [x] Create `backend/` directory structure
-- [x] `requirements.txt`
-- [x] `.env.example`
-- [x] Docker Compose for PostgreSQL
+## Implementation Steps (Logical Breakdown)
 
-### 2. Database & Migrations ✅
-- [x] SQLAlchemy models (users, progress, leaderboards)
-- [x] Alembic setup & initial migration
+### Step 1: Wire Auth Handlers ✅
+- Edit js/auth.js: Add event listeners for #authForm submit (login/register tabs)
+- Integrate api.js register/login calls
+- Update navbar user status on success
 
-### 3. FastAPI Core ✅
-- [x] `app/main.py` (app, CORS)
-- [x] `app/models.py`, `schemas.py`, `crud.py`
-- [x] `app/auth.py`, `dependencies.py`
+### Step 2: Fix UI & Init ✅
+- Edit index.html: Remove inline onclick (handled in JS)
+- Edit js/app.js: Add DOMContentLoaded init for navbar/user state/modals
+- Update user menu visibility (login/logout btns)
 
-### 4. API Endpoints ✅
-- [x] Auth: register/login ✓
-- [x] User profile (via JWT)
-- [x] Progress GET/POST ✓
-- [x] Leaderboards ✓
-- [x] Admin users ✓
+### Step 3: Track Integration ✅
+- Edit js/app.js: Added loadTracks() for index.html tracks-grid with progress per track from local cache
+- Fixed getProgressData() sync local (API save syncs server)
+- Track cards click to track.html?track=ID with hybrid guest/logged progress already wired
 
-### 5. Frontend Integration [PENDING]
-- [ ] `js/api.js`, `js/auth.js`
-- [ ] Update `js/app.js` progress functions
-- [ ] Login/register UI in `index.html`
+### Step 4: Testing [PENDING]
+- Backend: docker-compose up postgres, uvicorn
+- Frontend: Test register/login, progress sync, leaderboard
+- Mark complete
 
-### 6. Testing & Run [PENDING]
-- [ ] `docker-compose up postgres`
-- [ ] `alembic upgrade head`
-- [ ] `uvicorn app.main:app --reload`
-- [ ] Frontend API calls
-- [ ] Test auth/progress/leaderboard
-
-### 5. Frontend Integration [PENDING]
-- [ ] `js/api.js`, `js/auth.js`
-- [ ] Update `js/app.js` progress functions
-- [ ] Login/register UI in `index.html`
-
-**Backend Status**: ✅ Complete & Ready!
-
-**Test Backend**:
-```
-cd backend
-cp .env.example .env  
-pip install -r requirements.txt
-docker-compose up -d postgres
-alembic upgrade head
-uvicorn app.main:app --reload
-```
-Swagger: http://localhost:8000/docs
-
+**Next Action:** Implement Step 1, then update TODO.md
