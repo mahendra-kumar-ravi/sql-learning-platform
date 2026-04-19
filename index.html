@@ -17,10 +17,19 @@
     </svg>
     <span>SQL<b>Path</b></span>
   </div>
-  <div class="nav-links">
-    <a href="#">Tracks</a>
-    <a href="#">Leaderboard</a>
-    <a href="#">About</a>
+  <div class="nav-user">
+    <button id="userMenuBtn" class="user-btn">
+      <span id="userStatus">Guest</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    </button>
+    <div id="userMenu" class="user-menu">
+      <div id="userInfo"></div>
+      <button id="loginBtn">Login</button>
+      <button id="logoutBtn" style="display:none;">Logout</button>
+    </div>
   </div>
 </nav>
 
@@ -56,41 +65,38 @@
   <div class="tracks-grid" id="tracksGrid"></div>
 </section>
 
-<script src="js/app.js"></script>
-<script src="js/questions.js"></script>
-<script>
-  const grid = document.getElementById('tracksGrid');
-
-  TRACKS.forEach((track, i) => {
-    const completed = getCompletedCount(track.id);
-    const pct = Math.round((completed / track.count) * 100);
-
-    const card = document.createElement('div');
-    card.className = 'track-card fade-up';
-    card.style.setProperty('--card-color', track.color);
-    card.style.animationDelay = `${0.1 * i + 0.3}s`;
-    card.style.opacity = '0';
-
-    card.innerHTML = `
-      <div class="track-icon">${track.icon}</div>
-      <div class="track-name">${track.name}</div>
-      <div class="track-tagline">${track.tagline}</div>
-      <div class="track-desc">${track.desc}</div>
-      <div class="track-progress-bar">
-        <div class="track-progress-fill" style="width:${pct}%"></div>
+<script type="module" src="js/app.js"></script>
+<script type="module" src="js/questions.js"></script>
+<script src="js/api.js" type="module"></script>
+<script src="js/auth.js" type="module"></script>
+  <!-- Auth Modal -->
+  <div id="authModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button class="close-btn" onclick="hideAuthModal()">&times;</button>
+        <h3 id="modalTitle">Login</h3>
       </div>
-      <div class="track-meta">
-        <span class="track-count">${completed} / ${track.count} done</span>
-        <span class="track-arrow">→</span>
+      <div class="tab-buttons">
+        <button id="loginTab" class="tab-btn active">Login</button>
+        <button id="registerTab" class="tab-btn">Register</button>
       </div>
-    `;
-
-    card.onclick = () => {
-      window.location.href = `track.html?track=${track.id}`;
-    };
-
-    grid.appendChild(card);
-  });
-</script>
+      <form id="authForm">
+        <div id="loginFields">
+          <input type="email" id="loginEmail" placeholder="Email" required>
+          <input type="password" id="loginPassword" placeholder="Password" required>
+          <button type="submit" class="btn btn-primary full">Login</button>
+        </div>
+        <div id="registerFields" style="display:none;">
+          <input type="text" id="regUsername" placeholder="Username" required>
+          <input type="email" id="regEmail" placeholder="Email" required>
+          <input type="password" id="regPassword" placeholder="Password" required>
+          <button type="submit" class="btn btn-primary full">Register</button>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <p>Demo: admin@example.com / admin123</p>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

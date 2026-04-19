@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: sql-platform-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sql-platform-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - fromGroup: sql-platform-secrets
+
